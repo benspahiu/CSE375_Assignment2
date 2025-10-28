@@ -19,6 +19,8 @@ target_include_directories(cuckoo_concurrent PUBLIC include)
 target_include_directories(cuckoo_striped_concurrent PUBLIC include)
 target_include_directories(cuckoo_tx PUBLIC include)
 
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -Wall -Wextra -Wpedantic -Werror")
+
 # --- Main executable for quick testing
 add_executable(cuckoo_main src/main.cpp)
 target_link_libraries(cuckoo_main PRIVATE cuckoo_seq cuckoo_concurrent cuckoo_striped_concurrent cuckoo_tx)
