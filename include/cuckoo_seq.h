@@ -69,6 +69,9 @@ public:
     }
 
     void populate(std::vector<Key>& values){
+      for(Key& key : values){
+        add(key);
+      }
       return;
     }
 
