@@ -1,8 +1,6 @@
 #pragma once
 #include <vector>
-// #include <functional>
 #include <optional>
-// #include <utility>
 #include "hashes.h"
 
 namespace cuckoo {
