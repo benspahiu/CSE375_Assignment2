@@ -50,7 +50,7 @@ void final_check(cuckoo_seq<Key>& cuckooSet,
 
 void test_ints(){
   constexpr int N = 10000;
-  std::mt19937 rng(12345);
+  std::mt19937 rng;
   std::uniform_int_distribution<int> dist(0, N / 2);
 
   cuckoo_seq<int> cuckooSet;
@@ -68,7 +68,7 @@ void test_ints(){
 }
 
 void test_strings(){
-  std::mt19937 rng2(67890);
+  std::mt19937 rng;
   std::uniform_int_distribution<char> charDist('a', 'z');
   cuckoo_seq<std::string> cuckooSet;
   cuckoo_conc<std::string> concSet;
@@ -76,11 +76,11 @@ void test_strings(){
 
   for (int i = 0; i < 5000; ++i) {
     std::string key;
-    int len = 1 + (rng2() % 10);
+    int len = 1 + (rng() % 10);
     for (int j = 0; j < len; ++j)
-      key += charDist(rng2);
+      key += charDist(rng);
 
-    int op = rng2() % 3;
+    int op = rng() % 3;
 
     test_generic(key, op, cuckooSet, concSet, refSet);
   }
@@ -106,7 +106,7 @@ struct hash<Point> {
 }
 
 void test_user_defined_class(){
-  std::mt19937 rng(12345);
+  std::mt19937 rng;
   std::uniform_int_distribution<int> dist(0, 50);
   cuckoo_seq<Point> cuckooSet;
   cuckoo_conc<Point> concSet;
