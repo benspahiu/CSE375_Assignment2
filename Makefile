@@ -1,6 +1,7 @@
 # Compiler and flags
 CXX := g++
 CXXFLAGS := -std=c++20 -O3 -Wall -Wextra -Wpedantic -Werror
+LDFLAGS := -pthread
 
 # Directories
 INCLUDE_DIR := include
@@ -27,13 +28,13 @@ $(BUILD_DIR):
 
 # Executables
 $(TARGET_MAIN): $(SRC_MAIN) | $(BUILD_DIR)
-	$(CXX) $(CXXFLAGS) -I$(INCLUDE_DIR) $< -o $@
+	$(CXX) $(CXXFLAGS) -I$(INCLUDE_DIR) $< -o $@ $(LDFLAGS)
 
 $(TARGET_TEST_CORRECTNESS): $(SRC_TEST_CORRECTNESS) | $(BUILD_DIR)
-	$(CXX) $(CXXFLAGS) -I$(INCLUDE_DIR) $< -o $@
+	$(CXX) $(CXXFLAGS) -I$(INCLUDE_DIR) $< -o $@ $(LDFLAGS)
 
 $(TARGET_TEST_PERFORMANCE): $(SRC_TEST_PERFORMANCE) | $(BUILD_DIR)
-	$(CXX) $(CXXFLAGS) -I$(INCLUDE_DIR) $< -o $@
+	$(CXX) $(CXXFLAGS) -I$(INCLUDE_DIR) $< -o $@ $(LDFLAGS)
 
 # Clean up build artifacts
 clean:

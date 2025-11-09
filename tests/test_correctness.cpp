@@ -4,47 +4,58 @@
 #include <random>
 #include <cassert>
 #include "cuckoo_seq.h"
-#include "cuckoo_conc.h"
+#include "cuckoo_striped.h"
+#include "cuckoo_refinable.h"
 
 using namespace cuckoo;
 
 template<typename Key>
 void test_generic(Key& key, int op, cuckoo_seq<Key>& cuckooSet, 
-                  cuckoo_conc<Key>& concSet, std::unordered_set<Key>& refSet){
+                  cuckoo_striped<Key>& concSet, cuckoo_refinable<Key>& concSet2,
+                  std::unordered_set<Key>& refSet){
   if (op == 0) {
-    bool res1 = cuckooSet.add(key);
-    bool res2 = concSet.add(key);
-    bool res3 = refSet.insert(key).second;
+    bool res1 = refSet.insert(key).second;
+    bool res2 = cuckooSet.add(key);
+    bool res3 = concSet.add(key);
+    bool res4 = concSet2.add(key);
+    assert(res1 == res2);
     assert(res1 == res3);
-    assert(res2 == res3);
+    assert(res1 == res4);
   } 
   else if (op == 1) {
-    bool res1 = cuckooSet.remove(key);
-    bool res2 = concSet.remove(key);
-    bool res3 = (refSet.erase(key) > 0);
+    bool res1 = (refSet.erase(key) > 0);
+    bool res2 = cuckooSet.remove(key);
+    bool res3 = concSet.remove(key);
+    bool res4 = concSet2.remove(key);
+    assert(res1 == res2);
     assert(res1 == res3);
-    assert(res2 == res3);
+    assert(res1 == res4);
   } 
   else { // contains
-    bool res1 = cuckooSet.contains(key);
-    bool res2 = concSet.contains(key);
-    bool res3 = (refSet.find(key) != refSet.end());
+    bool res1 = (refSet.find(key) != refSet.end());
+    bool res2 = cuckooSet.contains(key);
+    bool res3 = concSet.contains(key);
+    bool res4 = concSet2.contains(key);
+    assert(res1 == res2);
     assert(res1 == res3);
-    assert(res2 == res3);
+    assert(res1 == res4);
   }
 }
 
 template<typename Key>
 void final_check(cuckoo_seq<Key>& cuckooSet, 
-                cuckoo_conc<Key>& concSet, 
+                cuckoo_striped<Key>& concSet, 
+                cuckoo_refinable<Key>& concSet2, 
                 std::unordered_set<Key>& refSet){
   
   // Final state check
   assert(cuckooSet.size() == refSet.size());
   assert(concSet.size() == refSet.size());
+  assert(concSet2.size() == refSet.size());
   for(auto it = refSet.begin(); it != refSet.end(); it++){
     assert(cuckooSet.contains(*it));
     assert(concSet.contains(*it));
+    assert(concSet2.contains(*it));
   }
 }
 
@@ -54,24 +65,25 @@ void test_ints(){
   std::uniform_int_distribution<int> dist(0, N / 2);
 
   cuckoo_seq<int> cuckooSet;
-  cuckoo_conc<int> concSet;
+  cuckoo_striped<int> concSet;
+  cuckoo_refinable<int> concSet2;
   std::unordered_set<int> refSet;
 
   for (int i = 0; i < N; ++i) {
     int key = dist(rng);
     int op = rng() % 3; // 0 = add, 1 = remove, 2 = contains
-
-    test_generic(key, op, cuckooSet, concSet, refSet);
+    test_generic(key, op, cuckooSet, concSet, concSet2, refSet);
   }
 
-  final_check(cuckooSet, concSet, refSet);
+  final_check(cuckooSet, concSet, concSet2, refSet);
 }
 
 void test_strings(){
   std::mt19937 rng;
   std::uniform_int_distribution<char> charDist('a', 'z');
   cuckoo_seq<std::string> cuckooSet;
-  cuckoo_conc<std::string> concSet;
+  cuckoo_striped<std::string> concSet;
+  cuckoo_refinable<std::string> concSet2;
   std::unordered_set<std::string> refSet;
 
   for (int i = 0; i < 5000; ++i) {
@@ -82,10 +94,10 @@ void test_strings(){
 
     int op = rng() % 3;
 
-    test_generic(key, op, cuckooSet, concSet, refSet);
+    test_generic(key, op, cuckooSet, concSet, concSet2, refSet);
   }
 
-  final_check(cuckooSet, concSet, refSet);
+  final_check(cuckooSet, concSet, concSet2, refSet);
 }
 
 struct Point {
@@ -109,17 +121,18 @@ void test_user_defined_class(){
   std::mt19937 rng;
   std::uniform_int_distribution<int> dist(0, 50);
   cuckoo_seq<Point> cuckooSet;
-  cuckoo_conc<Point> concSet;
+  cuckoo_striped<Point> concSet;
+  cuckoo_refinable<Point> concSet2;
   std::unordered_set<Point> refSet;
 
   for (int i = 0; i < 5000; ++i) {
     Point p{ dist(rng), dist(rng)};
     int op = rng() % 3;
 
-    test_generic(p, op, cuckooSet, concSet, refSet);
+    test_generic(p, op, cuckooSet, concSet, concSet2, refSet);
   }
 
-  final_check(cuckooSet, concSet, refSet);
+  final_check(cuckooSet, concSet, concSet2, refSet);
 }
 
 int main() {
