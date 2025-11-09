@@ -26,12 +26,8 @@ public:
       size_t h1 = hash1(key);
       size_t h2 = hash2(key);
 
-      // std::cout << "[Thread " << std::this_thread::get_id() << "] Trying to lock stripe mtx1 at add " << (h1 & (mtx1.size() - 1)) << std::endl;
       std::unique_lock<std::recursive_mutex> lock1(mtx1[h1 & (mtx1.size() - 1)]);
-      // std::cout << "[Thread " << std::this_thread::get_id() << "] Locked stripe mtx1 " << (h1 & (mtx1.size() - 1)) << std::endl;
-      // std::cout << "[Thread " << std::this_thread::get_id() << "] Trying to lock stripe mtx2 at add " << (h2 & (mtx2.size() - 1)) << std::endl;
       std::unique_lock<std::recursive_mutex> lock2(mtx2[h2 & (mtx2.size() - 1)]);
-      // std::cout << "[Thread " << std::this_thread::get_id() << "] Locked stripe mtx2 " << (h2 & (mtx2.size() - 1)) << std::endl;
 
       size_t b1 = h1 & (capacity - 1);
       size_t b2 = h2 & (capacity - 1);
@@ -67,9 +63,7 @@ public:
         mustResize = true;
       }
       lock1.unlock();
-      // std::cout << "[Thread " << std::this_thread::get_id() << "] unlocked stripe mtx1 " << (h1 & (mtx1.size() - 1)) << std::endl;
       lock2.unlock();
-      // std::cout << "[Thread " << std::this_thread::get_id() << "] unlocked stripe mtx2 " << (h2 & (mtx2.size() - 1)) << std::endl;
 
       if(mustResize){
         resize();
@@ -87,16 +81,9 @@ public:
       size_t h1 = hash1(key);
       size_t h2 = hash2(key);
 
-      // std::unique_lock<std::recursive_mutex> lock1(mtx1[h1 & (mtx1.size() - 1)]);
-      // std::unique_lock<std::recursive_mutex> lock2(mtx2[h2 & (mtx2.size() - 1)]);
-
-      // std::cout << "[Thread " << std::this_thread::get_id() << "] Trying to lock stripe mtx1 at contains" << (h1 & (mtx1.size() - 1)) << std::endl;
       std::unique_lock<std::recursive_mutex> lock1(mtx1[h1 & (mtx1.size() - 1)]);
-      // std::cout << "[Thread " << std::this_thread::get_id() << "] Locked stripe mtx1 " << (h1 & (mtx1.size() - 1)) << std::endl;
-      // std::cout << "[Thread " << std::this_thread::get_id() << "] Trying to lock stripe mtx2 at contains" << (h2 & (mtx2.size() - 1)) << std::endl;
       std::unique_lock<std::recursive_mutex> lock2(mtx2[h2 & (mtx2.size() - 1)]);
-      // std::cout << "[Thread " << std::this_thread::get_id() << "] Locked stripe mtx2 " << (h2 & (mtx2.size() - 1)) << std::endl;
-
+      
       return present(key, h1 & (capacity - 1), h2 & (capacity - 1));
     }
 
@@ -104,16 +91,9 @@ public:
       size_t h1 = hash1(key);
       size_t h2 = hash2(key);
 
-      // std::unique_lock<std::recursive_mutex> lock1(mtx1[h1 & (mtx1.size() - 1)]);
-      // std::unique_lock<std::recursive_mutex> lock2(mtx2[h2 & (mtx2.size() - 1)]);
-      
-      // std::cout << "[Thread " << std::this_thread::get_id() << "] Trying to lock stripe mtx1 at remove" << (h1 & (mtx1.size() - 1)) << std::endl;
       std::unique_lock<std::recursive_mutex> lock1(mtx1[h1 & (mtx1.size() - 1)]);
-      // std::cout << "[Thread " << std::this_thread::get_id() << "] Locked stripe mtx1 " << (h1 & (mtx1.size() - 1)) << std::endl;
-      // std::cout << "[Thread " << std::this_thread::get_id() << "] Trying to lock stripe mtx2 at remove" << (h2 & (mtx2.size() - 1)) << std::endl;
       std::unique_lock<std::recursive_mutex> lock2(mtx2[h2 & (mtx2.size() - 1)]);
-      // std::cout << "[Thread " << std::this_thread::get_id() << "] Locked stripe mtx2 " << (h2 & (mtx2.size() - 1)) << std::endl;
-
+      
       size_t b1 = h1 & (capacity - 1);
       std::vector<Key>& set1 = table1[b1];
       auto it = std::find(set1.begin(), set1.end(), key);
@@ -148,28 +128,26 @@ public:
 private:
     void resize(){
       if (capacity > (1 << 25)) throw std::runtime_error("Hash table too large. Check hash function");
-      size_t oldCapacity = capacity;
-      // std::cout << "[Thread " << std::this_thread::get_id() << "] Locking all" << std::endl;
+      
+      needResize = true;
+      std::unique_lock<std::recursive_mutex> resize_lock(resize_mtx);
+      if(!needResize) return;
+
       std::vector<std::unique_lock<std::recursive_mutex>> locks;
       for(std::recursive_mutex& mtx : mtx1){
         locks.push_back(std::unique_lock<std::recursive_mutex>(mtx));
       }
-      // std::cout << "[Thread " << std::this_thread::get_id() << "] Done locking all" << std::endl;
-      if(capacity != oldCapacity)
-        return;
-
-      // std::cout << "Readding " << size_ << " els" << std::endl;
+      
       size_ = 0; //updated by add
 
-      std::vector<std::vector<Key>> old_table1 = std::move(table1);
-      std::vector<std::vector<Key>> old_table2 = std::move(table2);
-      capacity = oldCapacity * 2;
-      table1.assign(capacity, std::vector<Key>(0));
-      table2.assign(capacity, std::vector<Key>(0));
+      capacity = capacity * 2;
+      std::vector<std::vector<Key>> old_table1(capacity);
+      std::vector<std::vector<Key>> old_table2(capacity);
+      std::swap(old_table1, table1);
+      std::swap(old_table2, table2);
 
       for(std::vector<Key>& set : old_table1){
         for(Key& z : set){
-          // std::cout << "[Thread " << std::this_thread::get_id() << "] Locking all" << std::endl;
           add(z);
         }
       }
@@ -178,6 +156,7 @@ private:
           add(z);
         }
       }
+      needResize = false;
     }
 
     bool present(Key key, size_t b1, size_t b2) const{
@@ -191,20 +170,20 @@ private:
     }
 
     bool relocate(int i, int hi){
+      std::unique_lock<std::recursive_mutex> resize_lock(resize_mtx);
       int hj = 0;
       int j = 1 - i;
       for(size_t round = 0; round < LIMIT; round++){
         std::vector<Key>& iSet = ((i == 0) ? table1 : table2)[hi];
+        if(iSet.size() == 0) return true;
         Key y = iSet[0];
         
         size_t hj1 = hash1(y);
         size_t hj2 = hash2(y);
 
-        // std::cout << "[Thread " << std::this_thread::get_id() << "] Locking in relocate "<< std::endl;
         std::unique_lock<std::recursive_mutex> lock1(mtx1[hj1 & (mtx1.size() - 1)]);
         std::unique_lock<std::recursive_mutex> lock2(mtx2[hj2 & (mtx2.size() - 1)]);
-        // std::cout << "[Thread " << std::this_thread::get_id() << "] Done locking in relocate "<< std::endl;
-
+        
         hj = (j == 0) ? (hj1 & (capacity - 1)) : (hj2 & (capacity - 1));
         std::vector<Key>& jSet = ((j == 0) ? table1 : table2)[hj];
         
@@ -246,14 +225,6 @@ private:
       return power;
     }
 
-    // size_t bucket1(const Key& key) const {
-    //   return hash1(key) & (capacity - 1); // % capacity (since power of 2)
-    // }
-
-    // size_t bucket2(const Key& key) const {
-    //   return hash2(key) & (capacity - 1); // % capacity (since power of 2)
-    // }
-
     std::atomic<size_t> capacity; // must be power of two
     std::atomic<size_t> size_;
     std::vector<std::vector<Key>> table1;
@@ -261,6 +232,8 @@ private:
     
     mutable std::vector<std::recursive_mutex> mtx1;
     mutable std::vector<std::recursive_mutex> mtx2;
+    std::recursive_mutex resize_mtx;
+    std::atomic<bool> needResize = false;
 
     myhash::StdHash1<Key> hash1;
     myhash::StdHash2<Key> hash2;
