@@ -187,6 +187,9 @@ private:
 
     void resize(){
       if (capacity > (1 << 25)) throw std::runtime_error("Hash table too large. Check hash function");
+      needResize = true;
+      std::unique_lock<std::recursive_mutex> resize_lock(resize_mtx);
+      if(!needResize) return;
       size_t old_capacity = capacity;
       uintptr_t expected = 0;  // what we hope it currently is
       uintptr_t desired  = reinterpret_cast<uintptr_t>(
@@ -203,10 +206,10 @@ private:
 
         size_ = 0; //updated by add
 
-        std::vector<std::vector<Key>> old_table1 = std::move(table1);
-        std::vector<std::vector<Key>> old_table2 = std::move(table2);
-        table1.assign(capacity, std::vector<Key>(0));
-        table2.assign(capacity, std::vector<Key>(0));
+        std::vector<std::vector<Key>> old_table1(capacity);
+        std::vector<std::vector<Key>> old_table2(capacity);
+        std::swap(old_table1, table1);
+        std::swap(old_table2, table2);
         // TODO: can we emplace_back
 
         
@@ -227,6 +230,7 @@ private:
         }
         owner = 0;
       }
+      needResize = false;
     }
 
     bool present(Key key, size_t b1, size_t b2) const{
@@ -240,10 +244,14 @@ private:
     }
 
     bool relocate(int i, int hi){
+      // necessary lock (thread-unsafe otherwise, but no measurable speedup from removing it)
+      // so no predicted speedup from reducing blocking
+      std::unique_lock<std::recursive_mutex> resize_lock(resize_mtx);
       int hj = 0;
       int j = 1 - i;
       for(size_t round = 0; round < LIMIT; round++){
         std::vector<Key>& iSet = ((i == 0) ? table1 : table2)[hi];
+        if(iSet.size() == 0) return true;
         Key y = iSet[0];
         
         size_t hj1 = hash1(y);
@@ -310,6 +318,8 @@ private:
     
     mutable std::vector<std::recursive_mutex> mtx1;
     mutable std::vector<std::recursive_mutex> mtx2;
+    std::recursive_mutex resize_mtx;
+    std::atomic<bool> needResize = false;
 
     myhash::StdHash1<Key> hash1;
     myhash::StdHash2<Key> hash2;

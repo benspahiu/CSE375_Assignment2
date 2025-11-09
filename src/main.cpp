@@ -5,7 +5,7 @@
 #include <cassert>
 
 // #include "hashes.h"  // your striped cuckoo header
-#include "cuckoo_striped.h"  // your striped cuckoo header
+#include "cuckoo_refinable.h"  // your striped cuckoo header
 
 // Helper to print messages with thread ID
 void log(const std::string& msg) {
@@ -13,7 +13,7 @@ void log(const std::string& msg) {
 }
 
 void simple_thread_safety_test() {
-    cuckoo::cuckoo_striped<int> table(64);
+    cuckoo::cuckoo_refinable<int> table(64);
 
     const int NUM_THREADS = 16;
     const int NUM_KEYS = 100;
