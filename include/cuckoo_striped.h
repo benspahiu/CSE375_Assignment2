@@ -19,6 +19,17 @@ public:
           mtx1(this->capacity),
           mtx2(this->capacity){}
 
+    static void configure(size_t max_relocations,
+                          size_t probe_size,
+                          size_t threshold,
+                          size_t limit) 
+    {
+      MAX_RELOCATIONS = max_relocations;
+      PROBE_SIZE = probe_size;
+      THRESHOLD = threshold;
+      LIMIT = limit;
+    }
+
     template<std::convertible_to<Key> K>
     bool add(K&& keyParam){
       Key key = std::forward<K>(keyParam);
@@ -148,12 +159,12 @@ private:
 
       for(std::vector<Key>& set : old_table1){
         for(Key& z : set){
-          add(z);
+          add(std::move(z));
         }
       }
       for(std::vector<Key>& set : old_table2){
         for(Key& z : set){
-          add(z);
+          add(std::move(z));
         }
       }
       needResize = false;
@@ -238,10 +249,10 @@ private:
     myhash::StdHash1<Key> hash1;
     myhash::StdHash2<Key> hash2;
 
-    static constexpr size_t MAX_RELOCATIONS = 16;
-    static constexpr size_t PROBE_SIZE = 4;
-    static constexpr size_t THRESHOLD = 2;
-    static constexpr size_t LIMIT = 10;
+    inline static size_t MAX_RELOCATIONS = 16;
+    inline static size_t PROBE_SIZE = 4;
+    inline static size_t THRESHOLD = 2;
+    inline static size_t LIMIT = 10;
 };
 
 } // namespace cuckoo

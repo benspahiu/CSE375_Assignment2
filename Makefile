@@ -1,6 +1,6 @@
 # Compiler and flags
 CXX := g++
-CXXFLAGS := -std=c++20 -O3 -Wall -Wextra -Wpedantic -Werror
+CXXFLAGS := -std=c++20 -g -O3 -fgnu-tm -Wall -Wextra -Wpedantic
 LDFLAGS := -pthread
 
 # Directories

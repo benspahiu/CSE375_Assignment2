@@ -14,6 +14,11 @@ public:
           table1(this->capacity, std::nullopt),
           table2(this->capacity, std::nullopt){}
 
+    static void configure(size_t max_relocations) 
+    {
+      MAX_RELOCATIONS = max_relocations;
+    }
+
     template<std::convertible_to<Key> K>
     bool add(K&& keyParam){
       Key key = std::forward<K>(keyParam);
@@ -120,7 +125,7 @@ private:
     myhash::StdHash1<std::optional<Key>> hash1;
     myhash::StdHash2<std::optional<Key>> hash2;
 
-    static constexpr size_t MAX_RELOCATIONS = 16;
+    inline static size_t MAX_RELOCATIONS = 16;
 };
 
 } // namespace cuckoo
