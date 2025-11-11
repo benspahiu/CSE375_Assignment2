@@ -1,0 +1,23 @@
+Generating test data...
+
+=== Cuckoo Hash Performance Test ===
+Initial capacity: 128
+Total operations: 10000000 per configuration
+
+Table Type          Threads   Time (ms)      Ops/sec        
+------------------------------------------------------------
+cuckoo_seq          1         224.38         44568233       
+cuckoo_striped      2         443.26         22559909       
+cuckoo_refinable    2         586.44         17052163       
+cuckoo_tx           2         670.33         14918003       
+cuckoo_striped      4         315.09         31736801       
+cuckoo_refinable    4         352.94         28333766       
+cuckoo_tx           4         594.58         16818685       
+cuckoo_striped      8         261.32         38267345       
+cuckoo_refinable    8         283.56         35265417       
+cuckoo_tx           8         498.18         20073037       
+cuckoo_striped      16        228.13         43833900       
+cuckoo_refinable    16        198.38         50407126       
+cuckoo_tx           16        462.67         21613621       
+
+Benchmark complete.
