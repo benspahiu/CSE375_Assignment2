@@ -38,19 +38,21 @@ struct Timer {
     }
 };
 
-// Performs mixed operations
 template<typename Table>
-void mixed_operations(Table& table, int numOps) {
+void mixed_operations(Table& table, int numOps, double read_ratio, double insert_ratio, double remove_ratio) {
     mt19937 rng(random_device{}());
     uniform_int_distribution<int> keyDist(0, MAX_KEY);
     uniform_real_distribution<double> opDist(0.0, 1.0);
 
+    (void) remove_ratio;
+
     for (int i = 0; i < numOps; ++i) {
         double op = opDist(rng);
         int key = keyDist(rng);
-        if (op < 0.8) {
+
+        if (op < read_ratio) {
             table.contains(key);
-        } else if (op < 0.9) {
+        } else if (op < read_ratio + insert_ratio) {
             table.add(key);
         } else {
             table.remove(key);
@@ -59,118 +61,90 @@ void mixed_operations(Table& table, int numOps) {
 }
 
 template<typename Table>
-double benchmark_seq(Table& table, const vector<int>& initVals) {
-    // cout << "Populating " << name << "..." << endl;
-    table.populate(const_cast<vector<int>&>(initVals)); // populate modifies
-
-    // cout << "Running " << name << " sequential benchmark..." << endl;
-    Timer t;
-    mixed_operations(table, NUM_OPS);
-    double ms = t.elapsed_ms();
-
-    // cout << name << " completed in " << ms << " ms" << endl;
-    return ms;
-}
-
-template<typename Table>
-double benchmark_concurrent(Table& table, int numThreads, const vector<int>& initVals) {
-    // cout << "Populating " << name << "..." << endl;
+double benchmark_seq(Table& table,
+                     const vector<int>& initVals,
+                     const string& name,
+                     double read_ratio,
+                     double insert_ratio,
+                     double remove_ratio) {
     table.populate(const_cast<vector<int>&>(initVals));
-
-    // cout << "Running " << name << " concurrent benchmark (" << numThreads << " threads)..." << endl;
-
+    (void) name;
+    Timer t;
+    mixed_operations(table, NUM_OPS, read_ratio, insert_ratio, remove_ratio);
+    return t.elapsed_ms();
+  }
+  
+  template<typename Table>
+  double benchmark_concurrent(Table& table,
+                              int numThreads,
+                              const vector<int>& initVals,
+                              const string& name,
+                              double read_ratio,
+                              double insert_ratio,
+                              double remove_ratio) {
+    table.populate(const_cast<vector<int>&>(initVals));
+      
+    (void) name;
     Timer t;
     vector<thread> threads;
     for (int i = 0; i < numThreads; ++i) {
-        threads.emplace_back([&table, numThreads]() {
-            mixed_operations(table, NUM_OPS / numThreads);
+        threads.emplace_back([&]() {
+            mixed_operations(table, NUM_OPS / numThreads, read_ratio, insert_ratio, remove_ratio);
         });
     }
-    for (auto& th : threads)
-        th.join();
-
-    double ms = t.elapsed_ms();
-    // cout << name << " completed in " << ms << " ms" << endl;
-    return ms;
+    for (auto& th : threads) th.join();
+    return t.elapsed_ms();
 }
 
-int main(int argc, char* argv[]) {
+int main() {
     size_t initial_capacity = 128;
-    if (argc > 1) {
-        try {
-            initial_capacity = stoul(argv[1]);
-        } catch (...) {
-            cerr << "Invalid capacity argument, using default (128)." << endl;
-        }
-    }
-
     cout << "Generating test data..." << endl;
     auto initVals = random_ints(NUM_KEYS, MAX_KEY);
 
-    // Configurable thread counts to test
-    vector<int> thread_configs = {1, 2, 4, 8, 16};
+    vector<tuple<double, double, double>> workloads = {
+        {0.80, 0.10, 0.10},
+        {0.90, 0.05, 0.05},
+        {0.96, 0.02, 0.02},
+        {0.98, 0.01, 0.01},
+        {1.00, 0.00, 0.00}
+    };
 
-    cout << "\n=== Cuckoo Hash Performance Test ===\n";
-    cout << "Initial capacity: " << initial_capacity << endl;
-    cout << "Total operations: " << NUM_OPS << " per configuration\n\n";
+    cout << "\n=== Cuckoo Hash Performance Test ===" << endl;
+    cout << "Initial capacity: " << initial_capacity << "\n\n";
 
-    // Column header
-    cout << left << setw(20) << "Table Type"
-         << setw(10) << "Threads"
-         << setw(15) << "Time (ms)"
-         << setw(15) << "Ops/sec"
-         << endl;
-    cout << string(60, '-') << endl;
+    // Table header
+    cout << left << setw(15) << "Workload"
+         << setw(15) << "Seq (ms)"
+         << setw(15) << "Striped (ms)"
+         << setw(18) << "Refinable (ms)"
+         << setw(18) << "Tx (ms)" << "\n";
 
-    // Sequential (1-thread)
-    {
-        cuckoo_seq<int> seq_table(initial_capacity);
-        double t = benchmark_seq(seq_table, initVals);
-        cout << left << setw(20) << "cuckoo_seq"
-             << setw(10) << 1
-             << setw(15) << fixed << setprecision(2) << t
-             << setw(15) << static_cast<long long>(NUM_OPS / (t / 1000.0))
-             << endl;
+    cout << string(15 + 15 + 15 + 18 + 18, '-') << "\n";
+
+    for (auto [r, i, d] : workloads) {
+        cuckoo_seq<int> seq(initial_capacity);
+        cuckoo_striped<int> striped(initial_capacity);
+        cuckoo_refinable<int> refinable(initial_capacity);
+        cuckoo_tx<int> tx(initial_capacity);
+
+        double seq_time = benchmark_seq(seq, initVals, "cuckoo_seq", r, i, d);
+        double striped_time = benchmark_concurrent(striped, 16, initVals, "cuckoo_striped", r, i, d);
+        double refined_time = benchmark_concurrent(refinable, 16, initVals, "cuckoo_refinable", r, i, d);
+        double tx_time = benchmark_concurrent(tx, 16, initVals, "cuckoo_tx", r, i, d);
+
+        // Print each row
+        cout << fixed << setprecision(2)
+             << setw(15) << (to_string((int)(r * 100)) + "/" +
+                             to_string((int)(i * 100)) + "/" +
+                             to_string((int)(d * 100)))
+             << setw(15) << seq_time
+             << setw(15) << striped_time
+             << setw(18) << refined_time
+             << setw(18) << tx_time
+             << "\n";
     }
 
-    // Multithreaded configurations
-    for (int threads : thread_configs) {
-        if (threads == 1) continue; // already did seq test
-
-        // Striped
-        {
-            cuckoo_striped<int> striped(initial_capacity);
-            double t = benchmark_concurrent(striped, threads, initVals);
-            cout << left << setw(20) << "cuckoo_striped"
-                 << setw(10) << threads
-                 << setw(15) << fixed << setprecision(2) << t
-                 << setw(15) << static_cast<long long>(NUM_OPS / (t / 1000.0))
-                 << endl;
-        }
-
-        // Refinable
-        {
-            cuckoo_refinable<int> refinable(initial_capacity);
-            double t = benchmark_concurrent(refinable, threads, initVals);
-            cout << left << setw(20) << "cuckoo_refinable"
-                 << setw(10) << threads
-                 << setw(15) << fixed << setprecision(2) << t
-                 << setw(15) << static_cast<long long>(NUM_OPS / (t / 1000.0))
-                 << endl;
-        }
-
-        // Transactional
-        {
-            cuckoo_tx<int> tx(initial_capacity);
-            double t = benchmark_concurrent(tx, threads, initVals);
-            cout << left << setw(20) << "cuckoo_tx"
-                 << setw(10) << threads
-                 << setw(15) << fixed << setprecision(2) << t
-                 << setw(15) << static_cast<long long>(NUM_OPS / (t / 1000.0))
-                 << endl;
-        }
-    }
-
-    cout << "\nBenchmark complete.\n";
+    cout << string(15 + 15 + 15 + 18 + 18, '-') << "\n";
+    cout << "All tests complete.\n";
     return 0;
 }
